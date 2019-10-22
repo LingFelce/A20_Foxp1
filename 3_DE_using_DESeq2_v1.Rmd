@@ -1,0 +1,735 @@
+---
+title: "Differential expression and Venn diagrams (Adam's code)"
+output: html_document
+---
+
+
+Update: 15th October 2018
+Update: 10th July 2019 - added genes in volcano plots
+
+```{r, include=FALSE}
+source('functions.R')
+library(org.Mm.eg.db)
+library(DESeq2)
+library(pheatmap)
+library(tidyverse)
+library(DT)
+library(limma)
+library(pheatmap)
+library(knitr)
+
+# to cache R markdown 
+# opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, cache=FALSE)
+```
+
+
+```{r , echo=TRUE,warning=FALSE,message=FALSE,error=FALSE, include=FALSE}
+
+df_mRNA <- read.table("genes.csv", sep = ",", header = TRUE, row.names=1)
+
+meta_data <- read.table("meta_data.csv", sep=",", header = TRUE)
+
+rownames(meta_data) <- meta_data$Sample
+
+df_mRNA = df_mRNA[,rownames(meta_data)]
+
+all(rownames(meta_data) %in% colnames(df_mRNA))
+
+
+```
+
+
+```{r , include = FALSE}
+# set up meta_data for all experiments
+
+meta_data <- meta_data %>% 
+  filter(Cell_line == "A20") %>% 
+  column_to_rownames("Sample")
+
+```
+
+
+
+
+```{r , message=FALSE, include=FALSE}
+## Set up the DESeq2 object
+res_e6.1 <- run_deseq2(as.data.frame(df_mRNA), meta_data, control = "neg", test="e6_1", value="Condition")
+
+res_e6.2 <- run_deseq2(as.data.frame(df_mRNA), meta_data, control = "neg", test="e6_2", value="Condition")
+
+res_e7.1 <- run_deseq2(as.data.frame(df_mRNA), meta_data, control = "neg", test="e7_1", value="Condition")
+
+res_e7.2 <- run_deseq2(as.data.frame(df_mRNA), meta_data, control = "neg", test="e7_2", value="Condition")
+
+
+```
+
+The following describes the analysis of the data using DEseq2. I have separated the analyses into the four different contrasts and have plotted summary statistics and MA plots for each.  
+
+
+## Summary of the data {.tabset .tabset-fade}
+
+### A20 Negative vs A20 Foxp1 Clone E6.1
+
+```{r , echo=FALSE}
+summary(res_e6.1, alpha=0.05)
+```
+
+### A20 Negative vs A20 Foxp1 Clone E6.2
+
+```{r , echo=FALSE}
+summary(res_e6.2, alpha=0.05)
+```
+
+### A20 Negative vs A20 Foxp1 Clone E7.1
+
+```{r , echo=FALSE}
+summary(res_e7.1, alpha=0.05)
+```
+
+
+### A20 Negative vs A20 Foxp1 Clone E7.2
+
+```{r , echo=FALSE}
+summary(res_e7.2, alpha=0.05)
+```
+
+## MA plots {.tabset .tabset-fade}
+
+In DESeq2, the function plotMA shows the log2 fold changes attributable to a given variable over the mean of normalized counts for all the samples in the DESeqDataSet. Points will be colored red if the adjusted p value is less than 0.01. Points which fall out of the window are plotted as open triangles pointing either up or down.
+
+### A20 Negative vs A20 Foxp1 Clone E6.1
+
+```{r, echo=FALSE}
+DESeq2::plotMA(res_e6.1)
+```
+
+### A20 Negative vs A20 Foxp1 Clone E6.2
+
+```{r, echo=FALSE}
+DESeq2::plotMA(res_e6.2)
+```
+
+### A20 Negative vs A20 Foxp1 Clone E7.1
+
+```{r, echo=FALSE}
+DESeq2::plotMA(res_e7.1)
+```
+
+### A20 Negative vs A20 Foxp1 Clone E7.2
+
+```{r, echo=FALSE}
+DESeq2::plotMA(res_e7.2)
+```
+
+
+
+# Volcano plots {.tabset .tabset-fade}
+
+## A20 Negative vs A20 Foxp1 Clone E6.1
+
+```{r, echo=FALSE}
+
+library("ggplot2") #Best plots
+library("ggrepel") #Avoid overlapping labels
+
+
+test <- as.data.frame(res_e6.1)
+  
+data <- as.vector(rownames(test))
+annots <-  AnnotationDbi::select(org.Mm.eg.db, keys=data,
+                                   columns="SYMBOL", keytype = "ENSEMBL")
+  
+result <- merge(test, annots, by.x="row.names", by.y="ENSEMBL")
+res <- result %>% 
+    dplyr::select(log2FoldChange, SYMBOL, baseMean, padj, Row.names) %>% 
+    na.omit()
+  
+
+mutateddf <- mutate(res, sig=ifelse(res$padj<0.01, "padj<0.01", "Not Sig")) #Will have different colors depending on significance
+input <- cbind(gene=rownames(mutateddf), mutateddf )
+input <- input %>% 
+  arrange(input$padj)
+
+symbol_data <- head(input, 100)
+symbol_data <- input %>% 
+  filter(SYMBOL == "Cd19" | SYMBOL == "Iglv2" | SYMBOL == "Phyhip")
+
+#convert the rownames to a column
+volc = ggplot(input, aes(log2FoldChange, -log10(padj))) + #volcanoplot with log2Foldchange versus pvalue
+    geom_point(aes(col=sig)) + #add points colored by significance
+geom_point(data=symbol_data, aes(log2FoldChange, -log10(padj)), colour="red") +
+      ggtitle("A20 Foxp1 Clone E6.1") #e.g. 'Volcanoplot DESeq2'
+volc
+
+#Save Volcano Plot
+ggsave("volcano/E6_1Volcanoplot.jpeg", device="jpeg") #In case you want to easily save to disk
+
+
+```
+
+## A20 Negative vs A20 Foxp1 Clone E6.2
+
+```{r, echo=FALSE}
+
+library("ggplot2") #Best plots
+library("ggrepel") #Avoid overlapping labels
+
+
+test <- as.data.frame(res_e6.2)
+  
+data <- as.vector(rownames(test))
+annots <-  AnnotationDbi::select(org.Mm.eg.db, keys=data,
+                                   columns="SYMBOL", keytype = "ENSEMBL")
+  
+result <- merge(test, annots, by.x="row.names", by.y="ENSEMBL")
+res <- result %>% 
+    dplyr::select(log2FoldChange, SYMBOL, baseMean, padj, Row.names) %>% 
+    na.omit()
+  
+
+mutateddf <- mutate(res, sig=ifelse(res$padj<0.01, "padj<0.01", "Not Sig")) #Will have different colors depending on significance
+input <- cbind(gene=rownames(mutateddf), mutateddf )
+input <- input %>% 
+  arrange(input$padj)
+
+symbol_data <- head(input, 100)
+symbol_data <- input %>% 
+  filter(SYMBOL == "Cd19" | SYMBOL == "Iglv2" | SYMBOL == "Phyhip")
+
+#convert the rownames to a column
+volc = ggplot(input, aes(log2FoldChange, -log10(padj))) + #volcanoplot with log2Foldchange versus pvalue
+    geom_point(aes(col=sig)) + #add points colored by significance
+geom_point(data=symbol_data, aes(log2FoldChange, -log10(padj)), colour="red") +
+      ggtitle("A20 Foxp1 Clone E6.2") #e.g. 'Volcanoplot DESeq2'
+volc
+
+#Save Volcano Plot
+ggsave("volcano/E6_2Volcanoplot.jpeg", device="jpeg") #In case you want to easily save to disk
+
+
+```
+
+## A20 Negative vs A20 Foxp1 Clone E7.1
+
+```{r, echo=FALSE}
+
+library("ggplot2") #Best plots
+library("ggrepel") #Avoid overlapping labels
+
+
+test <- as.data.frame(res_e7.1)
+  
+data <- as.vector(rownames(test))
+annots <-  AnnotationDbi::select(org.Mm.eg.db, keys=data,
+                                   columns="SYMBOL", keytype = "ENSEMBL")
+  
+result <- merge(test, annots, by.x="row.names", by.y="ENSEMBL")
+res <- result %>% 
+    dplyr::select(log2FoldChange, SYMBOL, baseMean, padj, Row.names) %>% 
+    na.omit()
+  
+
+mutateddf <- mutate(res, sig=ifelse(res$padj<0.01, "padj<0.01", "Not Sig")) #Will have different colors depending on significance
+input <- cbind(gene=rownames(mutateddf), mutateddf )
+input <- input %>% 
+  arrange(input$padj)
+
+symbol_data <- head(input, 100)
+symbol_data <- input %>% 
+  filter(SYMBOL == "Cd19" | SYMBOL == "Iglv2" | SYMBOL == "Phyhip")
+
+#convert the rownames to a column
+volc = ggplot(input, aes(log2FoldChange, -log10(padj))) + #volcanoplot with log2Foldchange versus pvalue
+    geom_point(aes(col=sig)) + #add points colored by significance
+geom_point(data=symbol_data, aes(log2FoldChange, -log10(padj)), colour="red") +
+      ggtitle("A20 Foxp1 Clone E7.1") #e.g. 'Volcanoplot DESeq2'
+volc
+
+#Save Volcano Plot
+ggsave("volcano/E7_1Volcanoplot.jpeg", device="jpeg") #In case you want to easily save to disk
+
+
+```
+
+## A20 Negative vs A20 Foxp1 Clone E7.2
+
+```{r, echo=FALSE}
+
+library("ggplot2") #Best plots
+library("ggrepel") #Avoid overlapping labels
+
+
+test <- as.data.frame(res_e7.1)
+  
+data <- as.vector(rownames(test))
+annots <-  AnnotationDbi::select(org.Mm.eg.db, keys=data,
+                                   columns="SYMBOL", keytype = "ENSEMBL")
+  
+result <- merge(test, annots, by.x="row.names", by.y="ENSEMBL")
+res <- result %>% 
+    dplyr::select(log2FoldChange, SYMBOL, baseMean, padj, Row.names) %>% 
+    na.omit()
+  
+
+mutateddf <- mutate(res, sig=ifelse(res$padj<0.01, "padj<0.01", "Not Sig")) #Will have different colors depending on significance
+input <- cbind(gene=rownames(mutateddf), mutateddf )
+input <- input %>% 
+  arrange(input$padj)
+
+symbol_data <- head(input, 100)
+symbol_data <- input %>% 
+  filter(SYMBOL == "Cd19" | SYMBOL == "Iglv2" | SYMBOL == "Phyhip")
+
+#convert the rownames to a column
+volc = ggplot(input, aes(log2FoldChange, -log10(padj))) + #volcanoplot with log2Foldchange versus pvalue
+    geom_point(aes(col=sig)) + #add points colored by significance
+geom_point(data=symbol_data, aes(log2FoldChange, -log10(padj)), colour="red") +
+      ggtitle("A20 Foxp1 Clone E7.2") #e.g. 'Volcanoplot DESeq2'
+volc
+
+#Save Volcano Plot
+ggsave("volcano/E7_2Volcanoplot.jpeg", device="jpeg") #In case you want to easily save to disk
+
+
+```
+
+
+
+## Results tables
+
+The folowing results tables show the significant genes. Filtering has been performed with a log2 fold change +/- 2.
+
+
+### A20 Negative vs A20 Foxp1 Clone E6.1
+
+```{r , message=FALSE, echo=FALSE}
+dt <- filter_genes(as.data.frame(res_e6.1), name="E6_1")
+
+
+filter_genes <- function(result, name){
+  
+  test <- as.data.frame(result)
+  
+  data <- as.vector(rownames(test))
+  annots <-  AnnotationDbi::select(org.Mm.eg.db, keys=data,
+                   columns=c("SYMBOL","GENENAME"), keytype = "ENSEMBL")
+  
+  result <- merge(test, annots, by.x="row.names", by.y="ENSEMBL")
+  res <- result %>% 
+    dplyr::select(log2FoldChange, SYMBOL, GENENAME, baseMean, padj, Row.names) %>% 
+    na.omit()
+  
+  sig <- res %>% 
+    filter(log2FoldChange > 1 | log2FoldChange < -1) %>% 
+    filter(padj < 0.05)
+  
+  sig_name = paste("results/", name,"_sig.csv", sep="")
+  sig_name_tsv = paste("results/", name,"_sig.tsv", sep="")
+  res_name = paste("results/",name,"_res.csv", sep="")
+  res_name_tsv = paste("results/", name,"_res.tsv", sep="")
+  write_csv(sig, sig_name)
+  write_csv(res, res_name)
+  write_tsv(sig, sig_name_tsv)
+  write_tsv(res, res_name_tsv)
+  return(list("sig"= sig, "res"= res))
+}
+
+datatable(dt$sig)
+```
+
+
+### A20 Negative vs A20 Foxp1 Clone E6.2
+
+```{r , message=FALSE, echo=FALSE}
+dt <- filter_genes(as.data.frame(res_e6.2), name="E6_2")
+
+
+datatable(dt$sig)
+```
+
+
+### A20 Negative vs A20 Foxp1 Clone E7.1
+
+```{r , message=FALSE, echo=FALSE}
+dt <- filter_genes(as.data.frame(res_e7.1), name="E7_1")
+
+
+datatable(dt$sig)
+```
+
+
+
+### A20 Negative vs A20 Foxp1 Clone E7.2
+
+```{r , message=FALSE, echo=FALSE}
+dt <- filter_genes(as.data.frame(res_e7.2), name="E7_2")
+
+
+datatable(dt$sig)
+```
+
+
+
+
+```{r, echo=FALSE}
+
+# Merge the data for reactome
+E6_1 <- as.data.frame(res_e6.1)
+E6_2 <- as.data.frame(res_e6.2)
+E7_1 <- as.data.frame(res_e7.1)
+E7_2 <- as.data.frame(res_e7.2)
+
+# downregulated
+
+E6_1_down <- E6_1 %>% 
+  rownames_to_column("gene") %>% 
+  filter(log2FoldChange < -1)
+
+E6_2_down <- E6_2 %>% 
+  rownames_to_column("gene") %>% 
+  filter(log2FoldChange < -1)
+
+E7_1_down <- E7_1 %>% 
+  rownames_to_column("gene") %>% 
+  filter(log2FoldChange < -1)
+
+E7_2_down <- E7_2 %>% 
+  rownames_to_column("gene") %>% 
+  filter(log2FoldChange < -1)
+
+# upregulated
+
+E6_1_up <- E6_1 %>% 
+  rownames_to_column("gene") %>%
+  filter(log2FoldChange > 1)
+
+E6_2_up <- E6_2 %>% 
+  rownames_to_column("gene") %>%
+  filter(log2FoldChange > 1)
+
+E7_1_up <- E7_1 %>% 
+  rownames_to_column("gene") %>%
+  filter(log2FoldChange > 1)
+
+E7_2_up <- E7_2 %>% 
+  rownames_to_column("gene") %>%
+  filter(log2FoldChange > 1)
+
+```
+
+
+# Shared downregulated genes in A20 Foxp1 E6 clones
+
+```{r, message=FALSE, echo=FALSE}
+library(reshape)
+library(reshape2)
+library(wesanderson)
+
+
+E6_1_down <- E6_1_down %>% 
+  select(gene, log2FoldChange)
+E6_2_down <- E6_2_down %>% 
+  select(gene, log2FoldChange)
+
+merge_down <- merge(E6_1_down, E6_2_down, by="gene", all = TRUE)
+
+merge_down <- merge_down %>% 
+  mutate(E6_1_LFC = log2FoldChange.x, E6_2_LFC = log2FoldChange.y) %>% 
+  select(-log2FoldChange.x, -log2FoldChange.y)
+
+merge_down[is.na(merge_down)] <- 0
+
+e6.1 <- (merge_down$E6_1_LFC < -1)
+e6.2 <- (merge_down$E6_2_LFC < -1)
+
+c2 <- cbind(e6.1, e6.2)
+
+a <- vennCounts(c2)
+a
+
+library("RColorBrewer")
+library(wesanderson)
+c("red", "blue", "darkgreen", "yellow")
+
+tiff("venn/e6_downregulated_venn.tiff")
+vennDiagram(a, circle.col = wes_palette("Darjeeling1"))
+#dev.off()
+knitr::include_graphics("venn/e6_downregulated_venn.tiff")
+
+
+
+# Next subset the overlapping genes for all
+
+merge_down <- ensembl_to_symbol(merge_down, "gene")
+down <- merge_down[complete.cases(merge_down),]
+
+
+write.csv(down, file="venn/e6_down.csv")
+```
+
+
+# Shared downregulated genes in A20 Foxp1 E7 clones
+
+```{r, echo=FALSE}
+library(reshape)
+library(reshape2)
+
+E7_1_down <- E7_1_down %>% 
+  select(gene, log2FoldChange)
+E7_2_down <- E7_2_down %>% 
+  select(gene, log2FoldChange)
+
+merge_down <- merge(E7_1_down, E7_2_down, by="gene", all = TRUE)
+
+merge_down <- merge_down %>% 
+  mutate(E7_1_LFC = log2FoldChange.x, E7_2_LFC = log2FoldChange.y) %>% 
+  select(-log2FoldChange.x, -log2FoldChange.y)
+
+merge_down[is.na(merge_down)] <- 0
+
+e7.1 <- (merge_down$E7_1_LFC < -1)
+e7.2 <- (merge_down$E7_2_LFC < -1)
+
+c2 <- cbind(e7.1, e7.2)
+
+a <- vennCounts(c2)
+a
+
+library("RColorBrewer")
+library(wesanderson)
+c("red", "blue", "darkgreen", "yellow")
+
+#setEPS()
+#postscript("sum_downregulated_venn.eps")
+#vennDiagram(a, circle.col = wes_palette("Darjeeling1"))
+#dev.off()
+
+tiff("venn/e7_downregulated_venn.tiff")
+vennDiagram(a, circle.col = wes_palette("Darjeeling1"))
+#dev.off()
+knitr::include_graphics("venn/e7_downregulated_venn.tiff")
+
+# Next subset the overlapping genes for all
+
+merge_down <- ensembl_to_symbol(merge_down, "gene")
+down <- merge_down[complete.cases(merge_down),]
+
+
+write.csv(down, file="venn/e7_down.csv")
+```
+
+# Shared downregulated genes in all Foxp1 clones
+
+```{r, echo=FALSE}
+library(reshape)
+library(reshape2)
+
+E6_1_down <- E6_1_down %>% 
+  select(gene, log2FoldChange)
+E6_2_down <- E6_2_down %>% 
+  select(gene, log2FoldChange)
+
+E7_1_down <- E7_1_down %>% 
+  select(gene, log2FoldChange)
+
+E7_2_down <- E7_2_down %>% 
+  select(gene, log2FoldChange)
+
+merge_down <- merge(E6_1_down, E6_2_down, by="gene", all = TRUE)
+
+merge_down <- merge_down %>% 
+  mutate(E6_1_LFC = log2FoldChange.x, E6_2_LFC = log2FoldChange.y) %>% 
+  select(-log2FoldChange.x, -log2FoldChange.y)
+
+merge_down <- merge(merge_down, E7_1_down, by="gene", all = TRUE)
+merge_down <- merge_down %>% 
+  mutate(E7_1_LFC = log2FoldChange) %>% 
+  select(-log2FoldChange)
+
+merge_down <- merge(merge_down, E7_2_down, by="gene", all = TRUE)
+merge_down <- merge_down %>% 
+  mutate(E7_2_LFC = log2FoldChange) %>% 
+  select(-log2FoldChange)
+
+
+merge_down[is.na(merge_down)] <- 0
+
+
+e6.1 <- (merge_down$E6_1_LFC < -1)
+e6.2 <- (merge_down$E6_2_LFC < -1)
+e7.1 <- (merge_down$E7_1_LFC < -1)
+e7.2 <- (merge_down$E7_2_LFC < -1)
+
+c2 <- cbind(e6.1, e6.2, e7.1, e7.2)
+
+a <- vennCounts(c2)
+a
+
+library("RColorBrewer")
+library(wesanderson)
+c("red", "blue", "darkgreen", "yellow")
+
+
+tiff("venn/all_downregulated_venn.tiff")
+vennDiagram(a, circle.col = wes_palette("Darjeeling1"))
+#dev.off()
+knitr::include_graphics("venn/all_downregulated_venn.tiff")
+
+# Next subset the overlapping genes for all
+
+merge_down <- ensembl_to_symbol(merge_down, "gene")
+down <- merge_down[complete.cases(merge_down),]
+
+
+write.csv(down, file="venn/all_down.csv")
+```
+
+
+# Shared upregulated genes in A20 Foxp1 E6 clones
+
+```{r, echo=FALSE}
+
+E6_1_up <- E6_1_up %>% 
+  select(gene, log2FoldChange)
+E6_2_up <- E6_2_up %>% 
+  select(gene, log2FoldChange)
+
+merge_up <- merge(E6_1_up, E6_2_up, by="gene", all = TRUE)
+
+merge_up <- merge_up %>% 
+  mutate(E6_1_LFC = log2FoldChange.x, E6_2_LFC = log2FoldChange.y) %>% 
+  select(-log2FoldChange.x, -log2FoldChange.y)
+
+merge_up[is.na(merge_up)] <- 0
+
+e6.1 <- (merge_up$E6_1_LFC > 1)
+e6.2 <- (merge_up$E6_2_LFC > 1)
+
+c2 <- cbind(e6.1, e6.2)
+
+a <- vennCounts(c2)
+a
+
+library("RColorBrewer")
+library(wesanderson)
+c("red", "blue", "darkgreen", "yellow")
+
+tiff("venn/e6_upregulated_venn.tiff")
+vennDiagram(a, circle.col = wes_palette("Darjeeling1"))
+#dev.off()
+knitr::include_graphics("venn/e6_upregulated_venn.tiff")
+
+# Next subset the overlapping genes for all
+
+merge_up <- ensembl_to_symbol(merge_up, "gene")
+up <- merge_up[complete.cases(merge_up),]
+
+
+write.csv(up, file="venn/e6_up.csv")
+
+
+```
+
+# Shared upregulated genes in A20 Foxp1 E7 clones
+
+```{r, echo=FALSE}
+
+E7_1_up <- E7_1_up %>% 
+  select(gene, log2FoldChange)
+E7_2_up <- E7_2_up %>% 
+  select(gene, log2FoldChange)
+
+merge_up <- merge(E7_1_up, E7_2_up, by="gene", all = TRUE)
+
+merge_up <- merge_up %>% 
+  mutate(E7_1_LFC = log2FoldChange.x, E7_2_LFC = log2FoldChange.y) %>% 
+  select(-log2FoldChange.x, -log2FoldChange.y)
+
+merge_up[is.na(merge_up)] <- 0
+
+e7.1 <- (merge_up$E7_1_LFC > 1)
+e7.2 <- (merge_up$E7_2_LFC > 1)
+
+c2 <- cbind(e7.1, e7.2)
+
+a <- vennCounts(c2)
+a
+
+library("RColorBrewer")
+library(wesanderson)
+c("red", "blue", "darkgreen", "yellow")
+
+tiff("venn/e7_upregulated_venn.tiff")
+vennDiagram(a, circle.col = wes_palette("Darjeeling1"))
+#dev.off()
+knitr::include_graphics("venn/e7_upregulated_venn.tiff")
+
+# Next subset the overlapping genes for all
+
+merge_up <- ensembl_to_symbol(merge_up, "gene")
+up <- merge_up[complete.cases(merge_up),]
+
+
+write.csv(up, file="venn/e7_up.csv")
+```
+
+# Shared upregulated genes in all Foxp1 clones
+
+```{r, echo=FALSE}
+
+E6_1_up <- E6_1_up %>% 
+  select(gene, log2FoldChange)
+E6_2_up <- E6_2_up %>% 
+  select(gene, log2FoldChange)
+E7_1_up <- E7_1_up %>% 
+  select(gene, log2FoldChange)
+E7_2_up <- E7_2_up %>% 
+  select(gene, log2FoldChange)
+
+merge_up <- merge(E6_1_up, E6_2_up, by="gene", all = TRUE)
+
+merge_up <- merge_up %>% 
+  mutate(E6_1_LFC = log2FoldChange.x, E6_2_LFC = log2FoldChange.y) %>% 
+  select(-log2FoldChange.x, -log2FoldChange.y)
+
+merge_up <- merge(merge_up, E7_1_up, by="gene", all = TRUE)
+merge_up <- merge_up %>% 
+  mutate(E7_1_LFC = log2FoldChange) %>% 
+  select(-log2FoldChange)
+
+merge_up <- merge(merge_up, E7_2_up, by="gene", all = TRUE)
+merge_up <- merge_up %>% 
+  mutate(E7_2_LFC = log2FoldChange) %>% 
+  select(-log2FoldChange)
+
+merge_up[is.na(merge_up)] <- 0
+
+e6.1 <- (merge_up$E6_1_LFC > 1)
+e6.2 <- (merge_up$E6_2_LFC > 1)
+e7.1 <- (merge_up$E7_1_LFC > 1)
+e7.2 <- (merge_up$E7_2_LFC > 1)
+
+c2 <- cbind(e6.1, e6.2, e7.1, e7.2)
+
+a <- vennCounts(c2)
+a
+
+library("RColorBrewer")
+library(wesanderson)
+c("red", "blue", "darkgreen", "yellow")
+
+tiff("venn/all_upregulated_venn.tiff")
+vennDiagram(a, circle.col = wes_palette("Darjeeling1"))
+#dev.off()
+knitr::include_graphics("venn/all_upregulated_venn.tiff")
+
+# Next subset the overlapping genes for all
+
+merge_up <- ensembl_to_symbol(merge_up, "gene")
+up <- merge_up[complete.cases(merge_up),]
+
+
+write.csv(up, file="venn/all_up.csv")
+```
+
