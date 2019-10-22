@@ -1,0 +1,15 @@
+cat lane1/WTCHG_343948_279115_1.fastq.gz lane2/WTCHG_346059_279115_1.fastq.gz > merge/WTCHG_279115_1.fastq.gz #1
+cat lane1/WTCHG_343948_280103_1.fastq.gz lane2/WTCHG_346059_280103_1.fastq.gz > merge/WTCHG_280103_1.fastq.gz #2
+cat lane1/WTCHG_343948_281186_1.fastq.gz lane2/WTCHG_346059_281186_1.fastq.gz > merge/WTCHG_281186_1.fastq.gz #3
+cat lane1/WTCHG_343948_282174_1.fastq.gz lane2/WTCHG_346059_282174_1.fastq.gz > merge/WTCHG_282174_1.fastq.gz #4
+cat lane1/WTCHG_343948_283162_1.fastq.gz lane2/WTCHG_346059_283162_1.fastq.gz > merge/WTCHG_283162_1.fastq.gz #5
+cat lane1/WTCHG_343948_284150_1.fastq.gz lane2/WTCHG_346059_284150_1.fastq.gz > merge/WTCHG_284150_1.fastq.gz #6
+cat lane1/WTCHG_343948_285138_1.fastq.gz lane2/WTCHG_346059_285138_1.fastq.gz > merge/WTCHG_285138_1.fastq.gz #7
+cat lane1/WTCHG_343948_286126_1.fastq.gz lane2/WTCHG_346059_286126_1.fastq.gz > merge/WTCHG_286126_1.fastq.gz #8
+cat lane1/WTCHG_343948_287114_1.fastq.gz lane2/WTCHG_346059_287114_1.fastq.gz > merge/WTCHG_287114_1.fastq.gz #9
+cat lane1/WTCHG_343948_288102_1.fastq.gz lane2/WTCHG_346059_288102_1.fastq.gz > merge/WTCHG_288102_1.fastq.gz #10
+cat lane1/WTCHG_343948_289185_1.fastq.gz lane2/WTCHG_346059_289185_1.fastq.gz > merge/WTCHG_289185_1.fastq.gz #11
+cat lane1/WTCHG_343948_290173_1.fastq.gz lane2/WTCHG_346059_290173_1.fastq.gz > merge/WTCHG_290173_1.fastq.gz #12
+cat lane1/WTCHG_343948_291161_1.fastq.gz lane2/WTCHG_346059_291161_1.fastq.gz > merge/WTCHG_291161_1.fastq.gz #13
+cat lane1/WTCHG_343948_292149_1.fastq.gz lane2/WTCHG_346059_292149_1.fastq.gz > merge/WTCHG_292149_1.fastq.gz #14
+cat lane1/WTCHG_343948_293137_1.fastq.gz lane2/WTCHG_346059_293137_1.fastq.gz > merge/WTCHG_293137_1.fastq.gz #15
