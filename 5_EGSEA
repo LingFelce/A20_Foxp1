@@ -1,0 +1,546 @@
+---
+title: "GSEA1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Gene Set Enrichment Analysis using EGSEA
+
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5747338/pdf/f1000research-6-13583.pdf
+
+Gene set enrichment analysis is a popular approach for prioritising the biological processes perturbed in genomic datasets. The Bioconductor project hosts over 80 software packages capable of gene set analysis. Most of these packages search for enriched signatures amongst differentially regulated genes to reveal higher level biological themes that may be missed when focusing only on evidence from individual genes. With so many different methods on offer, choosing the best algorithm and visualization approach can be challenging. The EGSEA package solves this problem by combining results from up to 12 prominent gene set testing algorithms to obtain a consensus ranking of biologically relevant results.This workflow demonstrates how EGSEA can extend limma-based differential expression analyses for RNA-seq and microarray data using experiments that profile 3 distinct cell populations important for studying the origins of breast cancer. Following data normalization and set-up of an appropriate linear model for differential expression analysis, EGSEA builds gene signature specific indexes that link a wide range of mouse or human gene set collections obtained from MSigDB, GeneSetDB and KEGG to the gene expression data being investigated. EGSEA is then configured and the ensemble enrichment analysis run, returning an object that can be queried using several S4 methods for ranking gene sets and visualizing results via heatmaps, KEGG pathway views, GO graphs, scatter plots and bar plots. Finally, an HTML report that combines these displays can fast-track the sharing of results with collaborators, and thus expedite downstream biological validation. EGSEA is simple to use and can be easily integrated with existing gene expression analysis pipelines for both human and mouse data.
+
+Update: can't do GSEA accurately using mouse Dbi as doesn't map Ensembl ID to gene symbol. Can't use Biomart as doesn't map Ensembl ID to Entrez ID. (but can do Ensembl ID to gene symbol)
+
+Update March 2019: still using for paper anyway! Repeat with H gene set using Annotation Dbi (org.Mm.eg.db)
+
+
+#A20 Foxp1 clones
+
+
+```{r, include=FALSE}
+library(limma)
+library(edgeR)
+library(EGSEAdata)
+library(EGSEA)
+library(DT)
+library(org.Mm.eg.db)
+library(biomaRt)
+
+library(GSVA)
+source('functions.R')
+library(DESeq2)
+library(pheatmap)
+library(dplyr)
+library(ggplot2)
+library (stringi)
+library(AnnotationDbi)
+library(DEFormats)
+library(statmod)
+library(BiocParallel)
+library(gplots)
+library("genefilter")
+
+#if get error message there is no package called ‘org.Rn.eg.db’ then install biocLite("rat2302.db")
+```
+
+
+```{r , echo=TRUE,warning=FALSE,message=FALSE,error=FALSE, include=FALSE}
+
+#Count matrix for A20 - using old code
+
+genes<-read.table("genes.csv", sep = ",", header = TRUE)
+
+neg <- genes [, c("A20_1", "A20_2", "A20_3")]
+e6_1 <- genes [, c("E6_1.1", "E6_1.2", "E6_1.3")]
+e6_2 <- genes [, c("E6_2.1", "E6_2.2", "E6_2.3")]
+e7_1 <- genes [, c("E7_1.1", "E7_1.2", "E7_1.3")]
+e7_2 <- genes [, c("E7_2.1", "E7_2.2", "E7_2.3")]
+
+
+group=rep(c("neg", "e6_1","e6_2", "e7_1", "e7_2"),each=3)
+
+
+#convert ensembl ids and get rid of ensembl id column. Move entrez id column to first plate. 
+genes$ENTREZID <- mapIds(org.Mm.eg.db, keys=as.character(genes$Geneid), keytype="ENSEMBL", column="ENTREZID")
+
+genes <- na.omit(genes, cols=genes$ENTREZID, invert=FALSE)
+
+col_idx <-grep("ENTREZID", names(genes))
+
+genes<-genes[,c(col_idx, (1:ncol(genes))[-col_idx])]
+
+genes$Geneid <-NULL
+
+
+#DGElist
+list <- DGEList(genes[,-1], group=group, genes=genes[,1,drop=FALSE])
+
+# TMM normalisation (only on preprocessed count matrix, not raw data!)
+x=calcNormFactors(list, method="TMM")
+
+design <- model.matrix(~0+group)
+colnames(group)<-levels(group)
+
+contr.matrix=makeContrasts(groupe6_1-groupneg, groupe6_2-groupneg, groupe7_1-groupneg, groupe7_2-groupneg, levels=design)
+
+
+#convert counts to log counts per million from DGEList
+v=voom(x, design, plot=FALSE)
+
+#convert entrez ids to symbols
+
+v$genes$SYMBOL <- mapIds(org.Mm.eg.db, keys=as.character(v$genes$ENTREZID), keytype="ENTREZID", column="SYMBOL")
+
+rownames(v$E) <- make.unique(v$genes$ENTREZID)
+
+
+```
+
+
+##Molecular Signatures Database: H (hallmark gene sets)
+
+```{r, echo=FALSE, include=FALSE}
+
+#Load H curated signatures set for mouse from Molecular Signatures Database, index collection H and create annotation for collection H
+
+gs.annots = buildIdx(entrezIDs = rownames(v$E), species = "mouse", msigdb.gsets = c("h"), go.part=TRUE)
+
+
+#mapping between entrez ids and gene symbols
+
+symbolsMap <- v$genes [, c(1,2)]
+colnames(symbolsMap) <- c("FeatureID", "Symbols")
+symbolsMap[, "Symbols"] = as.character(symbolsMap[,"Symbols"])
+
+#replace NA symbols with IDs (optional)
+
+na.sym = is.na(symbolsMap[, "Symbols"])
+
+symbolsMap[na.sym, "Symbols"] = symbolsMap[na.sym, "FeatureID"]
+
+#perform EGSEA analysis, set report=TRUE to generate EGSEA interactive report
+#gsa may take a while!
+
+baseMethods = c("camera", "safe", "gage", "padog", "zscore",
+"gsva", "globaltest", "ora")
+
+gsa = egsea(voom.results = v, contrasts = contr.matrix, gs.annots = gs.annots, symbolsMap = symbolsMap, baseGSEAs = baseMethods, sort.by = "med.rank", num.threads = 4, report = FALSE)
+
+
+```
+
+###Summary of ensemble testing with GSEA (H gene set)
+
+``` {r}
+
+summary(gsa)
+
+```
+
+###Top H gene sets from collection (comparing all clones)
+
+``` {r}
+
+all<-topSets(gsa,contrast="comparison", names.only=FALSE, number=20, verbose=FALSE, gs.label ="h")
+datatable(all)
+write.csv(all, file="gsea/h/summarybarplot.csv")
+```
+
+###Top gene sets from collection (E6.1) - OLD CODING
+
+``` {r}
+
+e6.1<-topSets(gsa,contrast="groupe6_1-groupneg", names.only=FALSE, number=10, verbose=FALSE, gs.label ="c2")
+datatable(e6.1)
+```
+
+###Top gene sets from collection (E6.2)
+
+``` {r}
+
+e6.2<-topSets(gsa,contrast="groupe6_2-groupneg", names.only=FALSE, number=10, verbose=FALSE, gs.label ="c2")
+datatable(e6.2)
+```
+
+###Top gene sets from collection (E7.1)
+
+``` {r}
+
+e7.1<-topSets(gsa,contrast="groupe7_1-groupneg", names.only=FALSE, number=10, verbose=FALSE, gs.label ="c2")
+datatable(e7.1)
+```
+
+###Top gene sets from collection (E7.2)
+
+``` {r}
+
+e7.2<-topSets(gsa,contrast="groupe7_2-groupneg", names.only=FALSE, number=10, verbose=FALSE, gs.label ="c2")
+datatable(e7.2)
+```
+
+
+
+###Visualising results at gene set level
+
+####Heatmaps
+The heatmap colour-scale ranges from down-regulated (blue) to up-regulated (red) while the row labels (Gene symbols) are coloured in green when the genes are statistically significant in the DE analysis (i.e. FDR ≤ 0.05 in at least one contrast).
+
+```{r, echo=FALSE}
+
+
+#plotHeatmap(gsa, gene.set="", gs.label="h", contrast="comparison", file.name="gsea/", format="pdf", verbose=TRUE)
+
+
+```
+
+####Summary bar plot
+
+``` {r, echo=FALSE}
+
+plotBars(gsa, gs.label="h", contrast="groupe6_1-groupneg", file.name="gsea/h/e6_1_barplot", format="pdf")
+
+plotBars(gsa, gs.label="h", contrast="groupe6_2-groupneg", file.name="gsea/h/e6_2_barplot", format="pdf")
+
+plotBars(gsa, gs.label="h", contrast="groupe7_1-groupneg", file.name="gsea/h/e7_1_barplot", format="pdf")
+
+plotBars(gsa, gs.label="h", contrast="groupe7_2-groupneg", file.name="gsea/h/e7_2_barplot", format="pdf")
+
+plotBars(gsa, gs.label="h", contrast="comparison", file.name="gsea/h/summarybarplot", format="pdf")
+
+```
+
+
+####Summary heatmap
+```{r, echo=FALSE}
+
+
+plotSummaryHeatmap(gsa, gs.label="h", hm.vals="avg.logfc.dir", file.name="gsea/h/summaryheatmap", format="pdf")
+
+```
+
+##Molecular Signatures Database: C5 (GO gene sets)
+
+```{r, echo=FALSE, include=FALSE}
+
+#Load c5 curated signatures set for mouse from Molecular Signatures Database, index collection c5 and create annotation for collection c5
+
+gs.annots = buildIdx(entrezIDs = rownames(v$E), species = "mouse", msigdb.gsets = c("c5"), go.part=TRUE)
+
+
+#mapping between entrez ids and gene symbols
+
+symbolsMap <- v$genes [, c(1,2)]
+colnames(symbolsMap) <- c("FeatureID", "Symbols")
+symbolsMap[, "Symbols"] = as.character(symbolsMap[,"Symbols"])
+
+#replace NA symbols with IDs (optional)
+
+na.sym = is.na(symbolsMap[, "Symbols"])
+na.sym
+symbolsMap[na.sym, "Symbols"] = symbolsMap[na.sym, "FeatureID"]
+
+#perform EGSEA analysis, set report=TRUE to generate EGSEA interactive report
+#gsa may take a while!
+
+baseMethods = c("camera", "safe", "gage", "padog", "zscore",
+"gsva", "globaltest", "ora")
+
+gsa = egsea(voom.results = v, contrasts = contr.matrix, gs.annots = gs.annots, symbolsMap = symbolsMap, baseGSEAs = baseMethods, sort.by = "med.rank", num.threads = 4, report = FALSE)
+
+
+```
+
+###Summary of ensemble testing with GSEA
+
+``` {r}
+
+summary(gsa)
+
+
+```
+###Top gene sets from collection (comparing all clones)
+
+``` {r}
+
+all<-topSets(gsa,contrast="comparison", names.only=FALSE, number=20, verbose=FALSE, gs.label ="c5BP")
+datatable(all)
+write.csv(all, file="gsea/C5/summarybarplotc5BP.csv")
+
+all<-topSets(gsa,contrast="comparison", names.only=FALSE, number=20, verbose=FALSE, gs.label ="c5CC")
+write.csv(all, file="gsea/C5/summarybarplotc5CC.csv")
+
+all<-topSets(gsa,contrast="comparison", names.only=FALSE, number=20, verbose=FALSE, gs.label ="c5MF")
+write.csv(all, file="gsea/C5/summarybarplotc5MF.csv")
+
+all<-topSets(gsa,contrast="comparison", names.only=FALSE, number=20, verbose=FALSE, gs.label ="KEGG")
+write.csv(all, file="gsea/C5/summarybarplotKEGG.csv")
+
+
+```
+
+###Top gene sets from collection (E6.1)
+
+``` {r}
+
+e6.1<-topSets(gsa,contrast="groupe6_1-groupneg", names.only=FALSE, number=10, verbose=FALSE, gs.label ="c5BP")
+datatable(e6.1)
+```
+
+###Top gene sets from collection (E6.2)
+
+``` {r}
+
+e6.2<-topSets(gsa,contrast="groupe6_2-groupneg", names.only=FALSE, number=10, verbose=FALSE, gs.label ="C5BP")
+datatable(e6.2)
+```
+
+###Top gene sets from collection (E7.1)
+
+``` {r}
+
+e7.1<-topSets(gsa,contrast="groupe7_1-groupneg", names.only=FALSE, number=10, verbose=FALSE, gs.label ="C5BP")
+datatable(e7.1)
+```
+
+###Top gene sets from collection (E7.2)
+
+``` {r}
+
+e7.2<-topSets(gsa,contrast="groupe7_2-groupneg", names.only=FALSE, number=10, verbose=FALSE, gs.label ="C5BP")
+datatable(e7.2)
+```
+
+
+
+###Visualising results at gene set level
+
+####Heatmaps
+The heatmap colour-scale ranges from down-regulated (blue) to up-regulated (red) while the row labels (Gene symbols) are coloured in green when the genes are statistically significant in the DE analysis (i.e. FDR ≤ 0.05 in at least one contrast).
+
+```{r, echo=FALSE}
+
+
+#plotHeatmap(gsa, gene.set="", gs.label="C5BP", contrast="comparison", file.name="gsea/", format="pdf", verbose=TRUE)
+
+
+```
+
+####Summary bar plot
+
+``` {r, echo=FALSE}
+
+plotBars(gsa, gs.label="c5BP", contrast="groupe6_1-groupneg", file.name="gsea/c5/e6_1_barplot", format="pdf")
+
+plotBars(gsa, gs.label="c5BP", contrast="groupe6_2-groupneg", file.name="gsea/c5/e6_2_barplot", format="pdf")
+
+plotBars(gsa, gs.label="c5BP", contrast="groupe7_1-groupneg", file.name="gsea/c5/e7_1_barplot", format="pdf")
+
+plotBars(gsa, gs.label="c5BP", contrast="groupe7_2-groupneg", file.name="gsea/c5/e7_2_barplot", format="pdf")
+
+plotBars(gsa, gs.label="c5BP", contrast="comparison", file.name="gsea/c5/summarybarplot", format="pdf")
+
+```
+
+
+####Summary heatmap
+```{r, echo=FALSE}
+
+
+plotSummaryHeatmap(gsa, gs.label="c5BP", hm.vals="avg.logfc.dir", file.name="gsea/c5/summaryheatmap", format="pdf")
+
+```
+
+##Molecular Signatures Database: H (hallmark gene sets)
+
+```{r, echo=FALSE, include=FALSE}
+
+#Load H signatures set for mouse from Molecular Signatures Database, index collection H and create annotation for collection H
+
+gs.annots = buildIdx(entrezIDs = rownames(v$E), species = "mouse", msigdb.gsets = c("h"), go.part=TRUE)
+
+
+#mapping between entrez ids and gene symbols
+
+symbolsMap <- v$genes [, c(1,2)]
+colnames(symbolsMap) <- c("FeatureID", "Symbols")
+symbolsMap[, "Symbols"] = as.character(symbolsMap[,"Symbols"])
+
+#replace NA symbols with IDs (optional)
+
+na.sym = is.na(symbolsMap[, "Symbols"])
+na.sym
+symbolsMap[na.sym, "Symbols"] = symbolsMap[na.sym, "FeatureID"]
+
+#perform EGSEA analysis, set report=TRUE to generate EGSEA interactive report
+#gsa may take a while!
+
+baseMethods = c("camera", "safe", "gage", "padog", "zscore",
+"gsva", "globaltest", "ora")
+
+gsa = egsea(voom.results = v, contrasts = contr.matrix, gs.annots = gs.annots, symbolsMap = symbolsMap, baseGSEAs = baseMethods, sort.by = "med.rank", num.threads = 4, report = FALSE)
+
+
+```
+
+###Summary of ensemble testing with GSEA
+
+``` {r}
+
+summary(gsa)
+
+```
+
+###Top gene sets from collection (comparing all clones)
+
+``` {r}
+
+all<-topSets(gsa,contrast="comparison", names.only=FALSE, number=10, verbose=FALSE, gs.label ="h")
+datatable(all)
+```
+
+###Top gene sets from collection (E6.1)
+
+``` {r}
+
+e6.1<-topSets(gsa,contrast="groupe6_1-groupneg", names.only=FALSE, number=10, verbose=FALSE, gs.label ="h")
+datatable(e6.1)
+```
+
+###Top gene sets from collection (E6.2)
+
+``` {r}
+
+e6.2<-topSets(gsa,contrast="groupe6_2-groupneg", names.only=FALSE, number=10, verbose=FALSE, gs.label ="h")
+datatable(e6.2)
+```
+
+###Top gene sets from collection (E7.1)
+
+``` {r}
+
+e7.1<-topSets(gsa,contrast="groupe7_1-groupneg", names.only=FALSE, number=10, verbose=FALSE, gs.label ="h")
+datatable(e7.1)
+```
+
+###Top gene sets from collection (E7.2)
+
+``` {r}
+
+e7.2<-topSets(gsa,contrast="groupe7_2-groupneg", names.only=FALSE, number=10, verbose=FALSE, gs.label ="h")
+datatable(e7.2)
+```
+
+
+
+###Visualising results at gene set level
+
+####Heatmaps
+The heatmap colour-scale ranges from down-regulated (blue) to up-regulated (red) while the row labels (Gene symbols) are coloured in green when the genes are statistically significant in the DE analysis (i.e. FDR ≤ 0.05 in at least one contrast).
+
+```{r, echo=FALSE}
+
+
+#plotHeatmap(gsa, gene.set="", gs.label="h", contrast="comparison", file.name="gsea/", format="pdf", verbose=TRUE)
+
+
+```
+
+####Summary bar plot
+
+``` {r, echo=FALSE}
+
+plotBars(gsa, gs.label="h", contrast="groupe6_1-groupneg", file.name="gsea/h/e6_1_barplot", format="pdf")
+
+plotBars(gsa, gs.label="h", contrast="groupe6_2-groupneg", file.name="gsea/h/e6_2_barplot", format="pdf")
+
+plotBars(gsa, gs.label="h", contrast="groupe7_1-groupneg", file.name="gsea/h/e7_1_barplot", format="pdf")
+
+plotBars(gsa, gs.label="h", contrast="groupe7_2-groupneg", file.name="gsea/h/e7_2_barplot", format="pdf")
+
+plotBars(gsa, gs.label="h", contrast="comparison", file.name="gsea/h/summarybarplot", format="pdf")
+
+```
+
+
+####Summary heatmap
+```{r, echo=FALSE}
+
+
+plotSummaryHeatmap(gsa, gs.label="h", hm.vals="avg.logfc.dir", file.name="gsea/h/summaryheatmap", format="pdf")
+
+```
+##Molecular Signatures Database: C7 (immunologic gene sets)
+
+```{r, echo=FALSE, include=FALSE}
+
+#Load C7 signatures set for mouse from Molecular Signatures Database, index collection C7 and create annotation for collection C7
+
+gs.annots = buildIdx(entrezIDs = rownames(v$E), species = "mouse", msigdb.gsets = c("c7"), go.part=TRUE)
+
+
+#mapping between entrez ids and gene symbols
+
+symbolsMap <- v$genes [, c(1,2)]
+colnames(symbolsMap) <- c("FeatureID", "Symbols")
+symbolsMap[, "Symbols"] = as.character(symbolsMap[,"Symbols"])
+
+#replace NA symbols with IDs (optional)
+
+na.sym = is.na(symbolsMap[, "Symbols"])
+na.sym
+symbolsMap[na.sym, "Symbols"] = symbolsMap[na.sym, "FeatureID"]
+
+#perform EGSEA analysis, set report=TRUE to generate EGSEA interactive report
+#gsa may take a while!
+
+baseMethods = c("camera", "safe", "gage", "padog", "zscore",
+"gsva", "globaltest", "ora")
+
+gsa = egsea(voom.results = v, contrasts = contr.matrix, gs.annots = gs.annots, symbolsMap = symbolsMap, baseGSEAs = baseMethods, sort.by = "med.rank", num.threads = 4, report = FALSE)
+
+
+```
+
+###Summary of ensemble testing with GSEA
+
+``` {r}
+
+summary(gsa)
+
+```
+
+###Top gene sets from collection (comparing all clones)
+
+``` {r}
+
+all<-topSets(gsa,contrast="comparison", names.only=FALSE, number=10, verbose=FALSE, gs.label ="c7")
+datatable(all)
+```
+####Summary bar plot
+
+``` {r, echo=FALSE}
+
+plotBars(gsa, gs.label="c7", contrast="groupe6_1-groupneg", file.name="gsea/c7/e6_1_barplot", format="pdf")
+
+plotBars(gsa, gs.label="c7", contrast="groupe6_2-groupneg", file.name="gsea/c7/e6_2_barplot", format="pdf")
+
+plotBars(gsa, gs.label="c7", contrast="groupe7_1-groupneg", file.name="gsea/c7/e7_1_barplot", format="pdf")
+
+plotBars(gsa, gs.label="c7", contrast="groupe7_2-groupneg", file.name="gsea/c7/e7_2_barplot", format="pdf")
+
+plotBars(gsa, gs.label="c7", contrast="comparison", file.name="gsea/c7/summarybarplot", format="pdf")
+
+```
+
+
+####Summary heatmap
+```{r, echo=FALSE}
+
+
+plotSummaryHeatmap(gsa, gs.label="c7", hm.vals="avg.logfc.dir", file.name="gsea/c7/summaryheatmap", format="pdf")
+
+```
