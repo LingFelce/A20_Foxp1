@@ -1,0 +1,751 @@
+---
+title: "Differential Expression (my code)"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+
+Differential gene expression for A20 Foxp1 KO clones using my code (from Bioconductor tutorial)
+
+Update: 26th June 2019 - export differentially expressed gene lists to edgeR_results folder, and generated Venn diagrams using Adam's code.
+Update: 9th July 2019 - tried edgeR significantly expressed genes for Venn diagram
+Update: 23rd August 2019 - try volcano plots. Need to Knit to HTML, for some reason keeps having (different) issues!
+
+Note: using mouse Annotation Dbi package to convert Ensembl IDs to gene symbols; however some gene symbols missing. Used Biomart to convert raw read count table from Ensembl ID to gene symbols, then used this to generate heat map.
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(cache=FALSE)
+
+library(edgeR)
+library(DEFormats)
+library(statmod)
+library(stringi)
+library(BiocParallel)
+library(gplots)
+library (limma)
+library(biomaRt)
+library(dplyr)
+library(knitr)
+library(ggplot2)
+library(ggrepel)
+
+
+#change Ensembl mirror if not working
+listMarts(host="uswest.ensembl.org")
+ensembl_us_west = useMart(biomart="ENSEMBL_MART_ENSEMBL", host="uswest.ensembl.org")
+
+
+#Ensembl US West: http://uswest.ensembl.org/index.html
+#Ensembl US East: http://useast.ensembl.org/index.html
+#Ensembl Asia: http://asia.ensembl.org/index.html
+#Default is UK (Sanger) - this website tells you which mirror using https://www.ensembl.org/info/about/mirrors.html
+
+
+```
+
+``` {r}
+genes<-read.table("genes.csv", sep = ",", header = TRUE)
+
+#create groups for comparisons
+#neg <- genes [, c("A20_1", "A20_2", "A20_3")]
+#e6_1 <- genes [, c("E6_1.1", "E6_1.2", "E6_1.3")]
+#e6_2 <- genes [, c("E6_2.1", "E6_2.2", "E6_2.3")]
+#e7_1 <- genes [, c("E7_1.1", "E7_1.2", "E7_1.3")]
+#e7_2 <- genes [, c("E7_2.1", "E7_2.2", "E7_2.3")]
+
+
+#group=rep(c("neg", "e6_1","e6_2", "e7_1", "e7_2"),each=3)
+
+#convert ensembl ids to symbols using biomart
+
+#ensembl <- useMart(biomart="ensembl", dataset="mmusculus_gene_ensembl", host = "www.ensembl.org", ensemblRedirect = "FALSE")
+
+listMarts(host="uswest.ensembl.org")
+
+ensembl_us_west = useMart(biomart="ENSEMBL_MART_ENSEMBL", host="uswest.ensembl.org", dataset="mmusculus_gene_ensembl")
+  
+data <- as.vector(genes$Geneid)
+  
+annots <-  getBM(attributes=c('ensembl_gene_id', 'external_gene_name'),filters = 'ensembl_gene_id', values = data, mart = ensembl_us_west)
+  
+genes <- merge(genes, annots, by.x="Geneid", by.y="ensembl_gene_id")
+
+#Move gene names to 1st column and delete ensembl ids.
+
+col_idx <- grep("external_gene_name", names(genes))
+genes <- genes[, c(col_idx, (1:ncol(genes))[-col_idx])]
+
+genes$Geneid <- NULL
+
+```
+
+
+``` {r}
+
+group <- as.factor(c("neg", "neg", "neg","e6_1","e6_1","e6_1","e6_2","e6_2","e6_2","e7_1","e7_1","e7_1","e7_2","e7_2","e7_2"))
+
+list <- DGEList(genes[,-1], group=group, genes=genes[,1,drop=FALSE])
+
+
+#design <- model.matrix(~0+group)
+#colnames(group)<-levels(group)
+#contr.matrix <- makeContrasts()
+
+design <- model.matrix(~0+group)
+colnames(design) <-gsub("group","",colnames(design))
+design
+
+#Set up contrasts for pairwise comparisons between cell populations
+contr.matrix <- makeContrasts(negvse6_1 = e6_1-neg, negvse6_2 = e6_2-neg, negvse7_1 = e7_1-neg, negvse7_2 = e7_2-neg, levels=colnames(design))
+
+
+keep <- filterByExpr(list, design)
+
+list <- list[keep, , keep.lib.sizes=FALSE]
+
+list <- calcNormFactors(list)
+```
+
+
+#Quality control
+
+##Mean difference plot - compares sample 1 with other samples
+
+```{r}
+plotMD(list,column=1)
+abline(h=0, col="red", lty=2, lwd=2)
+```
+
+
+##Estimation of dispersion
+
+```{r}
+list <- estimateDisp(list, design, robust=TRUE)
+plotBCV(list)
+
+```
+
+
+# Differential gene expression: 
+
+##Mean difference plots
+
+Mean difference plot showing log-fold change and average abundance of each gene. Significantly up and down DE genes highlighted in red and blue respectively.
+
+
+### A20 Neg vs E6 clone 1
+
+``` {r}
+
+fit <- glmQLFit(list, design, robust=TRUE)
+
+
+negvse6_1<- makeContrasts(e6_1-neg, levels=design)
+E6_1_res <- glmQLFTest(fit, contrast=negvse6_1)
+
+
+is.de <- decideTestsDGE(E6_1_res)
+
+
+```
+
+
+```{r}
+plotMD(E6_1_res, status=is.de, values=c(1,-1), col=c("red","blue"),
+       legend="topright")
+
+#Differential expression above a fold-change threshold - this was previously at 1.5, does that mean I was going with 1.5 fold change?
+
+e6_1.tr <- glmTreat(fit, contrast=negvse6_1, lfc=log2(1.5))
+```
+
+Number of differentially regulated genes
+
+``` {r}
+
+#this is equivalent of full gene list (res) however no adjusted p value! 
+
+summary(is.de)
+
+#summary(is.de <- decideTestsDGE(res))
+
+#E6_table <- res$table
+
+#E6_genes <- res$genes
+
+#write.csv(res$table, file="edgeR_results/E6_1_table.csv")
+
+#write.csv(res$genes, file="edgeR_results/E6_1_genes.csv")
+
+```
+
+
+### A20 Neg vs E6 clone 2
+
+``` {r}
+
+fit <- glmQLFit(list, design, robust=TRUE)
+
+
+negvse6_2<- makeContrasts(e6_2-neg, levels=design)
+E6_2_res <- glmQLFTest(fit, contrast=negvse6_2)
+
+
+is.de <- decideTestsDGE(E6_2_res)
+
+
+```
+
+
+```{r}
+plotMD(E6_2_res, status=is.de, values=c(1,-1), col=c("red","blue"),
+       legend="topright")
+
+#Differential expression above a fold-change threshold
+
+e6_2.tr <- glmTreat(fit, contrast=negvse6_2, lfc=log2(1.5))
+```
+
+Number of differentially regulated genes
+
+``` {r}
+summary(is.de)
+```
+
+
+### A20 Neg vs E7 clone 1
+
+``` {r}
+
+fit <- glmQLFit(list, design, robust=TRUE)
+
+
+negvse7_1<- makeContrasts(e7_1-neg, levels=design)
+E7_1_res <- glmQLFTest(fit, contrast=negvse7_1)
+
+
+is.de <- decideTestsDGE(E7_1_res)
+
+
+```
+
+
+```{r}
+plotMD(E7_1_res, status=is.de, values=c(1,-1), col=c("red","blue"),
+       legend="topright")
+
+#Differential expression above a fold-change threshold
+
+e7_1.tr <- glmTreat(fit, contrast=negvse7_1, lfc=log2(1.5))
+```
+
+Number of differentially regulated genes
+
+``` {r}
+summary(is.de)
+```
+
+
+### A20 Neg vs E7 clone 2
+
+``` {r}
+
+fit <- glmQLFit(list, design, robust=TRUE)
+
+
+negvse7_2<- makeContrasts(e7_2-neg, levels=design)
+E7_2_res <- glmQLFTest(fit, contrast=negvse7_2)
+
+
+is.de <- decideTestsDGE(E7_2_res)
+
+
+```
+
+
+```{r}
+plotMD(E7_2_res, status=is.de, values=c(1,-1), col=c("red","blue"),
+       legend="topright")
+
+#Differential expression above a fold-change threshold
+
+e7_2.tr <- glmTreat(fit, contrast=negvse7_2, lfc=log2(1.5))
+```
+
+Number of differentially regulated genes
+
+``` {r}
+summary(is.de)
+```
+
+
+
+# Heatmap to show differential gene expression of A20 negative vs A20 Foxp1 clones
+
+``` {r, fig.height=14, fig.width=10}
+
+#Generate heatmap - convert read counts to log2-CPM.
+logCPM <- cpm(list, prior.count=2, log=TRUE)
+rownames(logCPM) <- list$genes$external_gene_name
+colnames(logCPM) <- paste(list$samples$group, 1:3, sep="-")
+
+#Look at top 20 DE genes. Scale so mean = 0, SD = 1 so that heatmap displays relative change for each gene (by p value)
+o <- order(e6_1.tr$table$PValue, e6_2.tr$table$PValue, e7_1.tr$table$PValue, e7_2.tr$table$PValue)
+logCPM <- logCPM[o[1:100],]
+logCPM <- t(scale(t(logCPM)))
+
+#Generate actual heatmap
+library(gplots)
+col.pan <- colorpanel(100, "blue", "white", "red")
+heatmap.2(logCPM, col=col.pan, Rowv=TRUE, scale="row", 
+          trace="none", dendrogram="both", cexRow=0.75, cexCol=0.75, density.info="none")
+
+
+
+```
+
+
+```{r}
+
+#Exporting significant gene lists
+
+
+E6_1_all_res <- topTags(E6_1_res, n=Inf)
+E6_1_sig_res <- E6_1_all_res[E6_1_all_res$table$FDR < 0.05,]
+write.csv(E6_1_all_res, file="edgeR_results/E6_1_res.csv")
+write.csv(E6_1_sig_res, file="edgeR_results/E6_1_sig.csv")
+
+E6_2_all_res <- topTags(E6_2_res, n=Inf)
+E6_2_sig_res <- E6_2_all_res[E6_2_all_res$table$FDR < 0.05,]
+write.csv(E6_2_all_res, file="edgeR_results/E6_2_res.csv")
+write.csv(E6_2_sig_res, file="edgeR_results/E6_2_sig.csv")
+
+E7_1_all_res <- topTags(E7_1_res, n=Inf)
+E7_1_sig_res <- E7_1_all_res[E7_1_all_res$table$FDR < 0.05,]
+write.csv(E7_1_all_res, file="edgeR_results/E7_1_res.csv")
+write.csv(E7_1_sig_res, file="edgeR_results/E7_1_sig.csv")
+
+E7_2_all_res <- topTags(E7_2_res, n=Inf)
+E7_2_sig_res <- E7_2_all_res[E7_2_all_res$table$FDR < 0.05,]
+write.csv(E7_2_all_res, file="edgeR_results/E7_2_res.csv")
+write.csv(E7_2_sig_res, file="edgeR_results/E7_2_sig.csv")
+
+
+
+
+#all.res<-topTags(res,n=Inf)
+
+#up.res <- all.res[all.res$table$logFC > 0,]
+
+#down.res <- all.res[all.res$table$logFC < 0,]
+
+
+#write.table(down.res,sep="\t",file="downregulatedgenes.txt")
+
+#downreg <- read.delim("downregulatedgenes.txt")
+
+#View(downreg)
+
+#write.table(up.res,sep="\t",file="upregulatedgenes.txt")
+
+#upreg <-read.delim("upregulatedgenes.txt")
+
+#View(upreg)
+
+#write.table(GenewiseCounts,sep="\t",file="GenewiseCounts.txt")
+
+```
+
+
+#Volcano plots - following Adam's code
+
+##E6.1
+```{r, fig.height=6, fig.width=8}
+
+library("ggplot2") #Best plots
+library("ggrepel") #Avoid overlapping labels
+
+
+res <- as.data.frame(E6_1_all_res)
+
+mutateddf <- mutate(res, sig=ifelse(res$PValue<0.05, "P<0.05", "Not Sig")) #Will have different colors depending on significance
+input <- cbind(gene=mutateddf$external_gene_name, mutateddf )
+input <- input %>% 
+  arrange(input$PValue)
+
+symbol_data <- head(input, 100)
+symbol_data <- input %>% 
+  filter(external_gene_name == "Cd19" | external_gene_name == "Iglv2" | external_gene_name == "Phyhip" | external_gene_name == "Lgr6" | external_gene_name == "Meioc")
+
+#convert the rownames to a column
+volc = ggplot(input, aes(logFC, -log10(PValue))) + #volcanoplot with log2Foldchange versus pvalue
+    geom_point(aes(col=sig)) + #add points colored by significance
+geom_point(data=symbol_data, aes(logFC, -log10(PValue)), colour="red") +
+      ggtitle("A20 Foxp1 Clone E6.1") #e.g. 'Volcanoplot DESeq2'
+volc+geom_text_repel(data=symbol_data, size = 20 / .pt, aes(label=`external_gene_name`, fontface=3)) + scale_colour_Publication() + theme_bw()#adding text for the genes
+
+
+
+
+
+```
+
+
+##E6.2
+```{r, fig.height=6, fig.width=8}
+
+res <- as.data.frame(E6_2_all_res)
+
+mutateddf <- mutate(res, sig=ifelse(res$PValue<0.05, "P<0.05", "Not Sig")) #Will have different colors depending on significance
+input <- cbind(gene=mutateddf$external_gene_name, mutateddf )
+input <- input %>% 
+  arrange(input$PValue)
+
+symbol_data <- head(input, 100)
+symbol_data <- input %>% 
+  filter(external_gene_name == "Cd19" | external_gene_name == "Iglv2" | external_gene_name == "Phyhip" | external_gene_name == "Lgr6" | external_gene_name == "Meioc")
+
+#convert the rownames to a column
+volc = ggplot(input, aes(logFC, -log10(PValue))) + #volcanoplot with log2Foldchange versus pvalue
+    geom_point(aes(col=sig)) + #add points colored by significance
+geom_point(data=symbol_data, aes(logFC, -log10(PValue)), colour="red") +
+      ggtitle("A20 Foxp1 Clone E6.2") #e.g. 'Volcanoplot DESeq2'
+volc+geom_text_repel(data=symbol_data, size = 20 / .pt, aes(label=`external_gene_name`, fontface=3)) + scale_colour_Publication() + theme_bw()#adding text for the genes
+
+```
+
+##E7.1
+```{r, fig.height=6, fig.width=8}
+
+res <- as.data.frame(E7_1_all_res)
+
+mutateddf <- mutate(res, sig=ifelse(res$PValue<0.05, "P<0.05", "Not Sig")) #Will have different colors depending on significance
+input <- cbind(gene=mutateddf$external_gene_name, mutateddf )
+input <- input %>% 
+  arrange(input$PValue)
+
+symbol_data <- head(input, 100)
+symbol_data <- input %>% 
+  filter(external_gene_name == "Cd19" | external_gene_name == "Iglv2" | external_gene_name == "Phyhip" | external_gene_name == "Lgr6" | external_gene_name == "Meioc")
+
+#convert the rownames to a column
+volc = ggplot(input, aes(logFC, -log10(PValue))) + #volcanoplot with log2Foldchange versus pvalue
+    geom_point(aes(col=sig)) + #add points colored by significance
+geom_point(data=symbol_data, aes(logFC, -log10(PValue)), colour="red") +
+      ggtitle("A20 Foxp1 Clone E7.1") #e.g. 'Volcanoplot DESeq2'
+volc+geom_text_repel(data=symbol_data, size = 20 / .pt, aes(label=`external_gene_name`, fontface=3)) + scale_colour_Publication() + theme_bw()#adding text for the genes
+
+```
+
+##E7.2
+```{r, fig.height=6, fig.width=8}
+
+res <- as.data.frame(E7_2_all_res)
+
+mutateddf <- mutate(res, sig=ifelse(res$PValue<0.05, "P<0.05", "Not Sig")) #Will have different colors depending on significance
+input <- cbind(gene=mutateddf$external_gene_name, mutateddf )
+input <- input %>% 
+  arrange(input$PValue)
+
+symbol_data <- head(input, 100)
+symbol_data <- input %>% 
+  filter(external_gene_name == "Cd19" | external_gene_name == "Iglv2" | external_gene_name == "Phyhip" | external_gene_name == "Lgr6" | external_gene_name == "Meioc")
+
+#convert the rownames to a column
+volc = ggplot(input, aes(logFC, -log10(PValue))) + #volcanoplot with log2Foldchange versus pvalue
+    geom_point(aes(col=sig)) + #add points colored by significance
+geom_point(data=symbol_data, aes(logFC, -log10(PValue)), colour="red") +
+      ggtitle("A20 Foxp1 Clone E7.2") #e.g. 'Volcanoplot DESeq2'
+volc+geom_text_repel(data=symbol_data, size = 20 / .pt, aes(label=`external_gene_name`, fontface=3)) + scale_colour_Publication() + theme_bw()#adding text for the genes
+
+```
+
+
+#Venn diagrams - following Adam's code
+
+##Downregulated genes (from significant gene list)
+```{r}
+
+library(reshape)
+library(reshape2)
+
+#Import exported results back in 
+
+E6_1_results <- read.csv("edgeR_results/E6_1_sig.csv", row.names="X")
+E6_2_results <- read.csv("edgeR_results/E6_2_sig.csv", row.names="X")
+E7_1_results <- read.csv("edgeR_results/E7_1_sig.csv", row.names="X")
+E7_2_results <- read.csv("edgeR_results/E7_2_sig.csv", row.names="X")
+
+E6_1_down <- E6_1_results[E6_1_results$logFC < 0,]
+E6_2_down <- E6_2_results[E6_2_results$logFC < 0,]
+E7_1_down <- E7_1_results[E7_1_results$logFC < 0,]
+E7_2_down <- E7_2_results[E7_2_results$logFC < 0,]
+
+E6_1_down <- E6_1_down %>% 
+  select(external_gene_name, logFC)
+E6_2_down <- E6_2_down %>% 
+  select(external_gene_name, logFC)
+E7_1_down <- E7_1_down %>% 
+  select(external_gene_name, logFC)
+E7_2_down <- E7_2_down %>% 
+  select(external_gene_name, logFC)
+
+
+merge_down <- merge(E6_1_down, E6_2_down, by="external_gene_name", all = TRUE)
+
+merge_down <- merge_down %>% 
+  mutate(E6_1_LFC = logFC.x, E6_2_LFC = logFC.y) %>% 
+  select(-logFC.x, -logFC.y)
+
+merge_down <- merge(merge_down, E7_1_down, by="external_gene_name", all = TRUE)
+merge_down <- merge_down %>% 
+  mutate(E7_1_LFC = logFC) %>% 
+  select(-logFC)
+
+merge_down <- merge(merge_down, E7_2_down, by="external_gene_name", all = TRUE)
+merge_down <- merge_down %>% 
+  mutate(E7_2_LFC = logFC) %>% 
+  select(-logFC)
+
+
+merge_down[is.na(merge_down)] <- 0
+
+
+e6_1 <- (merge_down$E6_1_LFC < 0)
+e6_2 <- (merge_down$E6_2_LFC < 0)
+e7_1 <- (merge_down$E7_1_LFC < 0)
+e7_2 <- (merge_down$E7_2_LFC < 0)
+
+c2 <- cbind(e6_1, e6_2, e7_1, e7_2)
+
+a <- vennCounts(c2)
+a
+
+library("RColorBrewer")
+library(wesanderson)
+c("red", "blue", "darkgreen", "yellow")
+
+
+tiff("edgeR_results/venn2/all_downregulated_venn.tiff")
+vennDiagram(a, circle.col = wes_palette("Darjeeling1"))
+#dev.off()
+knitr::include_graphics("edgeR_results/venn2/all_downregulated_venn.tiff")
+
+
+write.csv(merge_down, file="edgeR_results/venn2/all_down.csv")
+
+```
+
+##Upregulated genes (from significant gene list)
+```{r}
+
+library(reshape)
+library(reshape2)
+
+#Import exported results back in 
+
+E6_1_up <- E6_1_results[E6_1_results$logFC > 0,]
+E6_2_up <- E6_2_results[E6_2_results$logFC > 0,]
+E7_1_up <- E7_1_results[E7_1_results$logFC > 0,]
+E7_2_up <- E7_2_results[E7_2_results$logFC > 0,]
+
+E6_1_up <- E6_1_up %>% 
+  select(external_gene_name, logFC)
+E6_2_up <- E6_2_up %>% 
+  select(external_gene_name, logFC)
+E7_1_up <- E7_1_up %>% 
+  select(external_gene_name, logFC)
+E7_2_up <- E7_2_up %>% 
+  select(external_gene_name, logFC)
+
+
+merge_up <- merge(E6_1_up, E6_2_up, by="external_gene_name", all = TRUE)
+
+merge_up <- merge_up %>% 
+  mutate(E6_1_LFC = logFC.x, E6_2_LFC = logFC.y) %>% 
+  select(-logFC.x, -logFC.y)
+
+merge_up <- merge(merge_up, E7_1_up, by="external_gene_name", all = TRUE)
+merge_up <- merge_up %>% 
+  mutate(E7_1_LFC = logFC) %>% 
+  select(-logFC)
+
+merge_up <- merge(merge_up, E7_2_up, by="external_gene_name", all = TRUE)
+merge_up <- merge_up %>% 
+  mutate(E7_2_LFC = logFC) %>% 
+  select(-logFC)
+
+
+merge_up[is.na(merge_up)] <- 0
+
+
+e6_1 <- (merge_up$E6_1_LFC > 0)
+e6_2 <- (merge_up$E6_2_LFC > 0)
+e7_1 <- (merge_up$E7_1_LFC > 0)
+e7_2 <- (merge_up$E7_2_LFC > 0)
+
+c2 <- cbind(e6_1, e6_2, e7_1, e7_2)
+
+a <- vennCounts(c2)
+a
+
+library("RColorBrewer")
+library(wesanderson)
+c("red", "blue", "darkgreen", "yellow")
+
+
+tiff("edgeR_results/venn2/all_upregulated_venn.tiff")
+vennDiagram(a, circle.col = wes_palette("Darjeeling1"))
+#dev.off()
+knitr::include_graphics("edgeR_results/venn2/all_upregulated_venn.tiff")
+
+
+write.csv(merge_up, file="edgeR_results/venn2/all_up.csv")
+
+```
+
+
+#Venn diagrams - following Adam's code
+
+##Downregulated genes (from total gene list)
+```{r}
+
+library(reshape)
+library(reshape2)
+
+#Import exported results back in 
+
+E6_1_results <- read.csv("edgeR_results/E6_1_res.csv", row.names="X")
+E6_2_results <- read.csv("edgeR_results/E6_2_res.csv", row.names="X")
+E7_1_results <- read.csv("edgeR_results/E7_1_res.csv", row.names="X")
+E7_2_results <- read.csv("edgeR_results/E7_2_res.csv", row.names="X")
+
+E6_1_down <- E6_1_results[E6_1_results$logFC < -1,]
+E6_2_down <- E6_2_results[E6_2_results$logFC < -1,]
+E7_1_down <- E7_1_results[E7_1_results$logFC < -1,]
+E7_2_down <- E7_2_results[E7_2_results$logFC < -1,]
+
+E6_1_down <- E6_1_down %>% 
+  select(external_gene_name, logFC)
+E6_2_down <- E6_2_down %>% 
+  select(external_gene_name, logFC)
+E7_1_down <- E7_1_down %>% 
+  select(external_gene_name, logFC)
+E7_2_down <- E7_2_down %>% 
+  select(external_gene_name, logFC)
+
+
+merge_down <- merge(E6_1_down, E6_2_down, by="external_gene_name", all = TRUE)
+
+merge_down <- merge_down %>% 
+  mutate(E6_1_LFC = logFC.x, E6_2_LFC = logFC.y) %>% 
+  select(-logFC.x, -logFC.y)
+
+merge_down <- merge(merge_down, E7_1_down, by="external_gene_name", all = TRUE)
+merge_down <- merge_down %>% 
+  mutate(E7_1_LFC = logFC) %>% 
+  select(-logFC)
+
+merge_down <- merge(merge_down, E7_2_down, by="external_gene_name", all = TRUE)
+merge_down <- merge_down %>% 
+  mutate(E7_2_LFC = logFC) %>% 
+  select(-logFC)
+
+
+merge_down[is.na(merge_down)] <- 0
+
+
+e6_1 <- (merge_down$E6_1_LFC < -1)
+e6_2 <- (merge_down$E6_2_LFC < -1)
+e7_1 <- (merge_down$E7_1_LFC < -1)
+e7_2 <- (merge_down$E7_2_LFC < -1)
+
+c2 <- cbind(e6_1, e6_2, e7_1, e7_2)
+
+a <- vennCounts(c2)
+a
+
+library("RColorBrewer")
+library(wesanderson)
+c("red", "blue", "darkgreen", "yellow")
+
+
+tiff("edgeR_results/all_downregulated_venn.tiff")
+vennDiagram(a, circle.col = wes_palette("Darjeeling1"))
+#dev.off()
+knitr::include_graphics("edgeR_results/all_downregulated_venn.tiff")
+
+
+write.csv(merge_down, file="edgeR_results/all_down.csv")
+
+```
+
+##Upregulated genes (from total gene list)
+```{r}
+
+library(reshape)
+library(reshape2)
+
+#Import exported results back in 
+
+E6_1_up <- E6_1_results[E6_1_results$logFC > 1,]
+E6_2_up <- E6_2_results[E6_2_results$logFC > 1,]
+E7_1_up <- E7_1_results[E7_1_results$logFC > 1,]
+E7_2_up <- E7_2_results[E7_2_results$logFC > 1,]
+
+E6_1_up <- E6_1_up %>% 
+  select(external_gene_name, logFC)
+E6_2_up <- E6_2_up %>% 
+  select(external_gene_name, logFC)
+E7_1_up <- E7_1_up %>% 
+  select(external_gene_name, logFC)
+E7_2_up <- E7_2_up %>% 
+  select(external_gene_name, logFC)
+
+
+merge_up <- merge(E6_1_up, E6_2_up, by="external_gene_name", all = TRUE)
+
+merge_up <- merge_up %>% 
+  mutate(E6_1_LFC = logFC.x, E6_2_LFC = logFC.y) %>% 
+  select(-logFC.x, -logFC.y)
+
+merge_up <- merge(merge_up, E7_1_up, by="external_gene_name", all = TRUE)
+merge_up <- merge_up %>% 
+  mutate(E7_1_LFC = logFC) %>% 
+  select(-logFC)
+
+merge_up <- merge(merge_up, E7_2_up, by="external_gene_name", all = TRUE)
+merge_up <- merge_up %>% 
+  mutate(E7_2_LFC = logFC) %>% 
+  select(-logFC)
+
+
+merge_up[is.na(merge_up)] <- 0
+
+
+e6_1 <- (merge_up$E6_1_LFC > 1)
+e6_2 <- (merge_up$E6_2_LFC > 1)
+e7_1 <- (merge_up$E7_1_LFC > 1)
+e7_2 <- (merge_up$E7_2_LFC > 1)
+
+c2 <- cbind(e6_1, e6_2, e7_1, e7_2)
+
+a <- vennCounts(c2)
+a
+
+library("RColorBrewer")
+library(wesanderson)
+c("red", "blue", "darkgreen", "yellow")
+
+
+tiff("edgeR_results/all_upregulated_venn.tiff")
+vennDiagram(a, circle.col = wes_palette("Darjeeling1"))
+#dev.off()
+knitr::include_graphics("edgeR_results/all_upregulated_venn.tiff")
+
+
+write.csv(merge_up, file="edgeR_results/all_up.csv")
+
+```
