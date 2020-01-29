@@ -26,9 +26,8 @@ library(readr)
 # adip_full <- read.csv("gsea/h/hallmark_genes/adip.csv")
 # adip <- adip_full$Gene_Symbol
 
-# list of pathways
-hallmark_list <- list(adip, androgen,apical_junc,apoptosis,cholesterol,dna_repair,estrogen_early,fatty_acid,glycolysis,hypoxia,kras_up,mit_spindle,mtorc1,myc_v1,myc_v2,ox_phos,pancreas,protein_secretion,tnfa,uv_response_dn)
-lapply(hallmark_list, as.vector)
+
+# lapply(hallmark_list, as.vector)
 
 # create list of pathways (filenames) by looking at .csv files
 # (also have some extra .csv files in there - oops!)
@@ -43,10 +42,9 @@ for (i in listcsv) {
   
 }
 
+# list of lists
+hallmark_list <- list(adip, androgen,apical_junc,apoptosis,cholesterol,dna_repair,estrogen_early,fatty_acid,glycolysis,hypoxia,kras_up,mit_spindle,mtorc1,myc_v1,myc_v2,ox_phos,pancreas,protein_secretion,tnfa,uv_response_dn)
 
-for(i in 1:20){
-  c
-}
 
 # name <- remove .csv from each filename
 # i <- link together .\\ and separate with a space
