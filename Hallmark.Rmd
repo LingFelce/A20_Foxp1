@@ -1,0 +1,352 @@
+---
+title: "Hallmark_Genes"
+author: "Ling"
+date: "29/01/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Hallmark Genes
+Date: 29th January 2020
+
+Reviewer 2 from Frontiers in Oncology asked for gene lists from hallmark pathways which are altered in clones. 
+
+Copied gene lists from Molecular Signatures Database and pasted into Excel, saved as .csv. Import into R.
+
+```{r hallmark}
+
+library(readr)
+
+# have to put all gene lists in general A20 Foxp1 Project folder as not recognising folders!
+
+# what I want to do for each file
+# adip_full <- read.csv("gsea/h/hallmark_genes/adip.csv")
+# adip <- adip_full$Gene_Symbol
+
+# list of pathways
+hallmark_list <- list(adip, androgen,apical_junc,apoptosis,cholesterol,dna_repair,estrogen_early,fatty_acid,glycolysis,hypoxia,kras_up,mit_spindle,mtorc1,myc_v1,myc_v2,ox_phos,pancreas,protein_secretion,tnfa,uv_response_dn)
+lapply(hallmark_list, as.vector)
+
+# create list of pathways (filenames) by looking at .csv files
+# (also have some extra .csv files in there - oops!)
+listcsv <- dir(pattern = "*.csv")
+
+# loop to read through each filename, import csv file and save as separate object
+for (i in listcsv) {
+  name <- gsub(".csv","",i)
+  i <- paste(".\\",i,sep="")
+  a <-read.csv(i, header=TRUE)
+  assign(name,as.vector(a$Gene_Symbol))
+  
+}
+
+
+for(i in 1:20){
+  c
+}
+
+# name <- remove .csv from each filename
+# i <- link together .\\ and separate with a space
+# assign <- assign value to a name in environment
+
+
+```
+
+```{r results}
+# import edgeR results for each clone
+
+E6_1_results <- read.csv("edgeR_results/E6_1_res.csv", row.names="X")
+E6_2_results <- read.csv("edgeR_results/E6_2_res.csv", row.names="X")
+E7_1_results <- read.csv("edgeR_results/E7_1_res.csv", row.names="X")
+E7_2_results <- read.csv("edgeR_results/E7_2_res.csv", row.names="X")
+
+# convert gene symbol to upper case (to look like human gene names) and save as new column
+
+E6_1_results$name <- toupper(E6_1_results$external_gene_name)
+E6_2_results$name <- toupper(E6_2_results$external_gene_name)
+E7_1_results$name <- toupper(E7_1_results$external_gene_name)
+E7_2_results$name <- toupper(E7_2_results$external_gene_name)
+
+```
+
+``` {r E6_1}
+
+# E6_1
+output <- E6_1_results[is.element(E6_1_results$name, adip),]
+write.csv(output, file="gsea/h/E6_1/adip.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, androgen),]
+write.csv(output, file="gsea/h/E6_1/androgen.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, apical_junc),]
+write.csv(output, file="gsea/h/E6_1/apical_junc.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, apoptosis),]
+write.csv(output, file="gsea/h/E6_1/apoptosis.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, cholesterol),]
+write.csv(output, file="gsea/h/E6_1/cholesterol.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, dna_repair),]
+write.csv(output, file="gsea/h/E6_1/dna_repair.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, estrogen_early),]
+write.csv(output, file="gsea/h/E6_1/estrogen_early.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, fatty_acid),]
+write.csv(output, file="gsea/h/E6_1/fatty_acid.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, glycolysis),]
+write.csv(output, file="gsea/h/E6_1/glycolysis.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, hypoxia),]
+write.csv(output, file="gsea/h/E6_1/hypoxia.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, kras_up),]
+write.csv(output, file="gsea/h/E6_1/kras_up.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, mit_spindle),]
+write.csv(output, file="gsea/h/E6_1/mit_spindle.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, mtorc1),]
+write.csv(output, file="gsea/h/E6_1/mtorc1.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, myc_v1),]
+write.csv(output, file="gsea/h/E6_1/myc_v1.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, myc_v2),]
+write.csv(output, file="gsea/h/E6_1/myc_v2.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, ox_phos),]
+write.csv(output, file="gsea/h/E6_1/ox_phos.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, pancreas),]
+write.csv(output, file="gsea/h/E6_1/pancreas.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, protein_secretion),]
+write.csv(output, file="gsea/h/E6_1/protein_secretion.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, tnfa),]
+write.csv(output, file="gsea/h/E6_1/tnfa.csv")
+
+output <- E6_1_results[is.element(E6_1_results$name, uv_response_dn),]
+write.csv(output, file="gsea/h/E6_1/uv_response_dn.csv")
+
+```
+
+
+``` {r E6_2}
+
+# E6_2
+output <- E6_2_results[is.element(E6_2_results$name, adip),]
+write.csv(output, file="gsea/h/E6_2/adip.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, androgen),]
+write.csv(output, file="gsea/h/E6_2/androgen.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, apical_junc),]
+write.csv(output, file="gsea/h/E6_2/apical_junc.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, apoptosis),]
+write.csv(output, file="gsea/h/E6_2/apoptosis.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, cholesterol),]
+write.csv(output, file="gsea/h/E6_2/cholesterol.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, dna_repair),]
+write.csv(output, file="gsea/h/E6_2/dna_repair.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, estrogen_early),]
+write.csv(output, file="gsea/h/E6_2/estrogen_early.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, fatty_acid),]
+write.csv(output, file="gsea/h/E6_2/fatty_acid.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, glycolysis),]
+write.csv(output, file="gsea/h/E6_2/glycolysis.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, hypoxia),]
+write.csv(output, file="gsea/h/E6_2/hypoxia.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, kras_up),]
+write.csv(output, file="gsea/h/E6_2/kras_up.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, mit_spindle),]
+write.csv(output, file="gsea/h/E6_2/mit_spindle.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, mtorc1),]
+write.csv(output, file="gsea/h/E6_2/mtorc1.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, myc_v1),]
+write.csv(output, file="gsea/h/E6_2/myc_v1.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, myc_v2),]
+write.csv(output, file="gsea/h/E6_2/myc_v2.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, ox_phos),]
+write.csv(output, file="gsea/h/E6_2/ox_phos.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, pancreas),]
+write.csv(output, file="gsea/h/E6_2/pancreas.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, protein_secretion),]
+write.csv(output, file="gsea/h/E6_2/protein_secretion.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, tnfa),]
+write.csv(output, file="gsea/h/E6_2/tnfa.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, uv_response_dn),]
+write.csv(output, file="gsea/h/E6_2/uv_response_dn.csv")
+
+```
+
+
+``` {r E7_1}
+
+# E7_1
+output <- E7_1_results[is.element(E7_1_results$name, adip),]
+write.csv(output, file="gsea/h/E7_1/adip.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, androgen),]
+write.csv(output, file="gsea/h/E7_1/androgen.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, apical_junc),]
+write.csv(output, file="gsea/h/E7_1/apical_junc.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, apoptosis),]
+write.csv(output, file="gsea/h/E7_1/apoptosis.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, cholesterol),]
+write.csv(output, file="gsea/h/E7_1/cholesterol.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, dna_repair),]
+write.csv(output, file="gsea/h/E7_1/dna_repair.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, estrogen_early),]
+write.csv(output, file="gsea/h/E7_1/estrogen_early.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, fatty_acid),]
+write.csv(output, file="gsea/h/E7_1/fatty_acid.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, glycolysis),]
+write.csv(output, file="gsea/h/E7_1/glycolysis.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, hypoxia),]
+write.csv(output, file="gsea/h/E7_1/hypoxia.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, kras_up),]
+write.csv(output, file="gsea/h/E7_1/kras_up.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, mit_spindle),]
+write.csv(output, file="gsea/h/E7_1/mit_spindle.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, mtorc1),]
+write.csv(output, file="gsea/h/E7_1/mtorc1.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, myc_v1),]
+write.csv(output, file="gsea/h/E7_1/myc_v1.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, myc_v2),]
+write.csv(output, file="gsea/h/E7_1/myc_v2.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, ox_phos),]
+write.csv(output, file="gsea/h/E7_1/ox_phos.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, pancreas),]
+write.csv(output, file="gsea/h/E7_1/pancreas.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, protein_secretion),]
+write.csv(output, file="gsea/h/E7_1/protein_secretion.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, tnfa),]
+write.csv(output, file="gsea/h/E7_1/tnfa.csv")
+
+output <- E7_1_results[is.element(E7_1_results$name, uv_response_dn),]
+write.csv(output, file="gsea/h/E7_1/uv_response_dn.csv")
+
+```
+
+``` {r E7_2}
+
+# E7_2
+output <- E7_2_results[is.element(E7_2_results$name, adip),]
+write.csv(output, file="gsea/h/E7_2/adip.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, androgen),]
+write.csv(output, file="gsea/h/E7_2/androgen.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, apical_junc),]
+write.csv(output, file="gsea/h/E7_2/apical_junc.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, apoptosis),]
+write.csv(output, file="gsea/h/E7_2/apoptosis.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, cholesterol),]
+write.csv(output, file="gsea/h/E7_2/cholesterol.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, dna_repair),]
+write.csv(output, file="gsea/h/E7_2/dna_repair.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, estrogen_early),]
+write.csv(output, file="gsea/h/E7_2/estrogen_early.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, fatty_acid),]
+write.csv(output, file="gsea/h/E7_2/fatty_acid.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, glycolysis),]
+write.csv(output, file="gsea/h/E7_2/glycolysis.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, hypoxia),]
+write.csv(output, file="gsea/h/E7_2/hypoxia.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, kras_up),]
+write.csv(output, file="gsea/h/E7_2/kras_up.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, mit_spindle),]
+write.csv(output, file="gsea/h/E7_2/mit_spindle.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, mtorc1),]
+write.csv(output, file="gsea/h/E7_2/mtorc1.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, myc_v1),]
+write.csv(output, file="gsea/h/E7_2/myc_v1.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, myc_v2),]
+write.csv(output, file="gsea/h/E7_2/myc_v2.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, ox_phos),]
+write.csv(output, file="gsea/h/E7_2/ox_phos.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, pancreas),]
+write.csv(output, file="gsea/h/E7_2/pancreas.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, protein_secretion),]
+write.csv(output, file="gsea/h/E7_2/protein_secretion.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, tnfa),]
+write.csv(output, file="gsea/h/E7_2/tnfa.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, uv_response_dn),]
+write.csv(output, file="gsea/h/E7_2/uv_response_dn.csv")
+
+```
+
+```{r}
+
+# this loop does work but for some reason the output says no genes similar between the two lists!
+
+for (i in listcsv) {
+  name <- gsub(".csv","",i)
+  output <- E6_1_results[is.element(E6_1_results$name, hallmark_list[[i]]),]
+  filename <- paste(name, "_E6_1.csv")
+  write.csv(output, file= filename)
+}
+
+
+
+```
+
+
