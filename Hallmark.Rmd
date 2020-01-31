@@ -43,7 +43,7 @@ for (i in listcsv) {
 }
 
 # list of lists
-hallmark_list <- list(adip, androgen,apical_junc,apoptosis,cholesterol,dna_repair,estrogen_early,fatty_acid,glycolysis,hypoxia,kras_up,mit_spindle,mtorc1,myc_v1,myc_v2,ox_phos,pancreas,protein_secretion,tnfa,uv_response_dn)
+hallmark_list <- list(adip, androgen,apical_junc,apoptosis,cholesterol,dna_repair,e2f_targets, estrogen_early,fatty_acid,glycolysis,hypoxia,kras_up,mit_spindle,mtorc1,myc_v1,myc_v2,ox_phos,pancreas,protein_secretion,tnfa,uv_response_dn)
 
 
 # name <- remove .csv from each filename
@@ -133,6 +133,9 @@ write.csv(output, file="gsea/h/E6_1/tnfa.csv")
 output <- E6_1_results[is.element(E6_1_results$name, uv_response_dn),]
 write.csv(output, file="gsea/h/E6_1/uv_response_dn.csv")
 
+output <- E6_1_results[is.element(E6_1_results$name, e2f_targets),]
+write.csv(output, file="gsea/h/E6_1/e2f_targets.csv")
+
 ```
 
 
@@ -198,6 +201,9 @@ write.csv(output, file="gsea/h/E6_2/tnfa.csv")
 
 output <- E6_2_results[is.element(E6_2_results$name, uv_response_dn),]
 write.csv(output, file="gsea/h/E6_2/uv_response_dn.csv")
+
+output <- E6_2_results[is.element(E6_2_results$name, e2f_targets),]
+write.csv(output, file="gsea/h/E6_2/e2f_targets.csv")
 
 ```
 
@@ -265,6 +271,9 @@ write.csv(output, file="gsea/h/E7_1/tnfa.csv")
 output <- E7_1_results[is.element(E7_1_results$name, uv_response_dn),]
 write.csv(output, file="gsea/h/E7_1/uv_response_dn.csv")
 
+output <- E7_1_results[is.element(E7_1_results$name, e2f_targets),]
+write.csv(output, file="gsea/h/E7_1/e2f_targets.csv")
+
 ```
 
 ``` {r E7_2}
@@ -329,6 +338,9 @@ write.csv(output, file="gsea/h/E7_2/tnfa.csv")
 
 output <- E7_2_results[is.element(E7_2_results$name, uv_response_dn),]
 write.csv(output, file="gsea/h/E7_2/uv_response_dn.csv")
+
+output <- E7_2_results[is.element(E7_2_results$name, e2f_targets),]
+write.csv(output, file="gsea/h/E7_2/e2f_targets.csv")
 
 ```
 
